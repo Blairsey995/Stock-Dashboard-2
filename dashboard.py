@@ -6,11 +6,16 @@ import matplotlib.pyplot as plt
 st.set_page_config(page_title="My Stock Tracker", layout="wide")
 st.title("📈 My Stock Portfolio Tracker")
 
-st.write("Add your stocks below. Click **Refresh Prices** for live data. Your holdings are saved automatically in your browser.")
+st.write("Add your stocks below. Click **Refresh Prices** for live data. Your holdings are saved automatically in your browser (they persist when you reopen the link on this device).")
 
-# Simple persistent storage using session_state (survives refresh, tab close/reopen on same device)
-if 'holdings' not in st.session_state:
-    st.session_state.holdings = pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
+# Start with one blank row to avoid type compatibility errors
+if 'holdings' not in st.session_state or st.session_state.holdings.empty:
+    st.session_state.holdings = pd.DataFrame([{
+        "Ticker": "",
+        "Shares": 0.0,
+        "Buy Price ($)": 0.0,
+        "Your Target Price ($)": 0.0
+    }])
 
 edited = st.data_editor(
     st.session_state.holdings,
