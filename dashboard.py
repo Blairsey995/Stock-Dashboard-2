@@ -16,7 +16,7 @@ creds = Credentials.from_service_account_info(
     scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 )
 client = gspread.authorize(creds)
-sheet = client.open("Stock Portfolio Holdings").sheet1  # <-- Change this if your sheet has a different name
+sheet = client.open("Stock Portfolio Holdings").sheet1  # Exact name from your screenshot
 
 def load_holdings():
     try:
@@ -55,7 +55,6 @@ edited = st.data_editor(
 
 st.session_state.holdings = edited
 
-# Big visible buttons
 if st.button("💾 Save to Google Sheets", type="secondary", use_container_width=True):
     save_holdings(edited)
 
