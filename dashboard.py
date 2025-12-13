@@ -10,13 +10,13 @@ st.title("📈 My Stock Portfolio Tracker")
 
 st.write("Add your stocks below. Click **Refresh Prices** for live data. Click **Save** to save to Google Sheets.")
 
-# Secure Google Sheets using Streamlit secrets
+# Use Streamlit secrets
 creds = Credentials.from_service_account_info(
     st.secrets["gcp_service_account"],
     scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 )
 client = gspread.authorize(creds)
-sheet = client.open("Stock Portfolio Holdings").sheet1  # Exact name from your screenshot
+sheet = client.open_by_key("1Nr1f3sV7-sz5eaPtNek84sRaMFnKFI9JWK9GSHpz1F4").sheet1  # Your sheet ID
 
 def load_holdings():
     try:
