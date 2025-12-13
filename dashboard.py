@@ -2,22 +2,43 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import matplotlib.pyplot as plt
+import gspread
+from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="My Stock Tracker", layout="wide")
 st.title("📈 My Stock Portfolio Tracker")
 
-st.write("Add your stocks below. Enter ticker, shares, and your average buy price. Click **Refresh Prices** for live data.")
+# Secure Google Sheets using Streamlit secrets
+creds = Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"],
+    scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+)
+client = gspread.authorize(creds)
+sheet = client.open("Stock Portfolio Holdings").sheet1  # Change if your sheet name is different
 
-# Start with a single empty row to avoid type compatibility issues
-if 'holdings' not in st.session_state or st.session_state.holdings.empty:
-    st.session_state.holdings = pd.DataFrame([{
-        "Ticker": "",
-        "Shares": 0.0,
-        "Buy Price ($)": 0.0,
-        "Your Target Price ($)": 0.0
-    }])
+def load_holdings():
+    try:
+        records = sheet.get_all_records()
+        if records:
+            return pd.DataFrame(records)
+        else:
+            return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
+    except Exception as e:
+        st.error(f"Could not load from Google Sheets: {e}. Using local data.")
+        return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
 
-# Editable table
+def save_holdings(df):
+    try:
+        sheet.clear()
+        sheet.append_row(df.columns.tolist())
+        sheet.append_rows(df.values.tolist())
+        st.success("Holdings saved to Google Sheets!")
+    except Exception as e:
+        st.error(f"Save failed: {e}")
+
+if 'holdings' not in st.session_state:
+    st.session_state.holdings = load_holdings()
+
 edited = st.data_editor(
     st.session_state.holdings,
     num_rows="dynamic",
@@ -32,7 +53,11 @@ edited = st.data_editor(
 
 st.session_state.holdings = edited
 
-if st.button("🔄 Refresh Prices", type="primary"):
+col_save, col_refresh = st.columns(2)
+if col_save.button("💾 Save to Google Sheets"):
+    save_holdings(edited)
+
+if col_refresh.button("🔄 Refresh Prices", type="primary"):
     with st.spinner("Fetching live prices and analyst targets..."):
         current_prices = []
         current_values = []
