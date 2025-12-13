@@ -6,9 +6,9 @@ import matplotlib.pyplot as plt
 st.set_page_config(page_title="My Stock Tracker", layout="wide")
 st.title("📈 My Stock Portfolio Tracker")
 
-st.write("Add your stocks below. Click **Refresh Prices** for live data. Your holdings are saved automatically in your browser (they persist when you reopen the link on this device).")
+st.write("Add your stocks below. Click **Refresh Prices** for live data. Your holdings are saved automatically in your browser — they will stay when you reopen the link on this device.")
 
-# Start with one blank row to avoid type compatibility errors
+# Start with one blank row to avoid typing issues
 if 'holdings' not in st.session_state or st.session_state.holdings.empty:
     st.session_state.holdings = pd.DataFrame([{
         "Ticker": "",
