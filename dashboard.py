@@ -8,13 +8,15 @@ from google.oauth2.service_account import Credentials
 st.set_page_config(page_title="My Stock Tracker", layout="wide")
 st.title("📈 My Stock Portfolio Tracker")
 
+st.write("Add your stocks below. Click **Refresh Prices** for live data. Click **Save** to save to Google Sheets.")
+
 # Secure Google Sheets using Streamlit secrets
 creds = Credentials.from_service_account_info(
     st.secrets["gcp_service_account"],
     scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 )
 client = gspread.authorize(creds)
-sheet = client.open("Stock Portfolio Holdings").sheet1  # Change if your sheet name is different
+sheet = client.open("Stock Portfolio Holdings").sheet1  # <-- Change this if your sheet has a different name
 
 def load_holdings():
     try:
@@ -24,7 +26,7 @@ def load_holdings():
         else:
             return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
     except Exception as e:
-        st.error(f"Could not load from Google Sheets: {e}. Using local data.")
+        st.error(f"Load from Google Sheets failed: {e}. Using local data.")
         return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
 
 def save_holdings(df):
@@ -53,11 +55,11 @@ edited = st.data_editor(
 
 st.session_state.holdings = edited
 
-col_save, col_refresh = st.columns(2)
-if col_save.button("💾 Save to Google Sheets"):
+# Big visible buttons
+if st.button("💾 Save to Google Sheets", type="secondary", use_container_width=True):
     save_holdings(edited)
 
-if col_refresh.button("🔄 Refresh Prices", type="primary"):
+if st.button("🔄 Refresh Prices", type="primary", use_container_width=True):
     with st.spinner("Fetching live prices and analyst targets..."):
         current_prices = []
         current_values = []
