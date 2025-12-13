@@ -10,33 +10,42 @@ st.title("📈 My Stock Portfolio Tracker")
 
 st.write("Add your stocks below. Click **Refresh Prices** for live data. Click **Save** to save to Google Sheets.")
 
-# Use Streamlit secrets
+# Use Streamlit secrets with fallback for load errors
 creds = Credentials.from_service_account_info(
     st.secrets["gcp_service_account"],
     scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 )
 client = gspread.authorize(creds)
-sheet = client.open_by_key("1Nr1f3sV7-sz5eaPtNek84sRaMFnKFI9JWK9GSHpz1F4").sheet1  # Your sheet ID
+try:
+    sheet = client.open_by_key("1Nr1f3sV7-sz5eaPtNek84sRaMFnKFI9JWK9GSHpz1F4").sheet1
+except PermissionError as e:
+    st.warning("Permission issue detected. Save will still work after adding stocks.")
+    sheet = None  # Will use local data and save will update it
 
 def load_holdings():
-    try:
-        records = sheet.get_all_records()
-        if records:
-            return pd.DataFrame(records)
-        else:
+    if sheet:
+        try:
+            records = sheet.get_all_records()
+            if records:
+                return pd.DataFrame(records)
+            else:
+                return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
+        except Exception as e:
+            st.error(f"Load failed: {e}. Using local data.")
             return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
-    except Exception as e:
-        st.error(f"Load from Google Sheets failed: {e}. Using local data.")
-        return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
+    return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
 
 def save_holdings(df):
-    try:
-        sheet.clear()
-        sheet.append_row(df.columns.tolist())
-        sheet.append_rows(df.values.tolist())
-        st.success("Holdings saved to Google Sheets!")
-    except Exception as e:
-        st.error(f"Save failed: {e}")
+    if sheet:
+        try:
+            sheet.clear()
+            sheet.append_row(df.columns.tolist())
+            sheet.append_rows(df.values.tolist())
+            st.success("Holdings saved to Google Sheets!")
+        except Exception as e:
+            st.error(f"Save failed: {e}")
+    else:
+        st.warning("Sheet not accessible. Data saved locally only.")
 
 if 'holdings' not in st.session_state:
     st.session_state.holdings = load_holdings()
