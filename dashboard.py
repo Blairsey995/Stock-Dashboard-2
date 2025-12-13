@@ -2,58 +2,18 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import matplotlib.pyplot as plt
-import gspread
-from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="My Stock Tracker", layout="wide")
 st.title("📈 My Stock Portfolio Tracker")
 
-st.write("Add your stocks below. Click **Refresh Prices** for live data. Click **Save** to save to Google Sheets.")
+st.write("Add your stocks below. Click **Refresh Prices** for live data. Your holdings are saved automatically in your browser.")
 
-# Use Streamlit secrets
-creds = Credentials.from_service_account_info(
-    st.secrets["gcp_service_account"],
-    scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-)
-client = gspread.authorize(creds)
-sheet = client.open_by_key("1Nr1f3sV7-sz5eaPtNek84sRaMFnKFI9JWK9GSHpz1F4").sheet1
-
-def load_holdings():
-    try:
-        records = sheet.get_all_records()
-        df = pd.DataFrame(records)
-        if not df.empty:
-            # Force correct types to avoid Streamlit compatibility error
-            df["Shares"] = pd.to_numeric(df["Shares"], errors="coerce").fillna(0.0)
-            df["Buy Price ($)"] = pd.to_numeric(df["Buy Price ($)"], errors="coerce").fillna(0.0)
-            df["Your Target Price ($)"] = pd.to_numeric(df["Your Target Price ($)"], errors="coerce").fillna(0.0)
-            return df
-        else:
-            return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
-    except Exception as e:
-        st.warning(f"Google Sheets load failed: {e}. Using local data.")
-        return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
-
-def save_holdings(df):
-    try:
-        sheet.clear()
-        sheet.append_row(df.columns.tolist())
-        sheet.append_rows(df.values.tolist())
-        st.success("Holdings saved to Google Sheets!")
-    except Exception as e:
-        st.error(f"Save failed: {e}")
-
+# Simple persistent storage using session_state (survives refresh, tab close/reopen on same device)
 if 'holdings' not in st.session_state:
-    st.session_state.holdings = load_holdings()
-
-# Ensure correct types before editing
-holdings = st.session_state.holdings.copy()
-holdings["Shares"] = pd.to_numeric(holdings["Shares"], errors="coerce").fillna(0.0)
-holdings["Buy Price ($)"] = pd.to_numeric(holdings["Buy Price ($)"], errors="coerce").fillna(0.0)
-holdings["Your Target Price ($)"] = pd.to_numeric(holdings["Your Target Price ($)"], errors="coerce").fillna(0.0)
+    st.session_state.holdings = pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
 
 edited = st.data_editor(
-    holdings,
+    st.session_state.holdings,
     num_rows="dynamic",
     column_config={
         "Ticker": st.column_config.TextColumn("Ticker", required=True),
@@ -65,9 +25,6 @@ edited = st.data_editor(
 )
 
 st.session_state.holdings = edited
-
-if st.button("💾 Save to Google Sheets", type="secondary", use_container_width=True):
-    save_holdings(edited)
 
 if st.button("🔄 Refresh Prices", type="primary", use_container_width=True):
     with st.spinner("Fetching live prices and analyst targets..."):
@@ -159,4 +116,6 @@ if st.button("🔄 Refresh Prices", type="primary", use_container_width=True):
             ax.pie(value_df["Current Value ($)"], labels=value_df["Ticker"], autopct="%1.1f%%", startangle=90)
             ax.axis("equal")
             st.pyplot(fig)
+
+st.info("Your holdings are saved automatically in your browser. They will persist when you reopen the link on this device.")
 
