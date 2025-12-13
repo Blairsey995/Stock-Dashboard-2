@@ -10,48 +10,50 @@ st.title("📈 My Stock Portfolio Tracker")
 
 st.write("Add your stocks below. Click **Refresh Prices** for live data. Click **Save** to save to Google Sheets.")
 
-# Use Streamlit secrets with fallback for load errors
+# Use Streamlit secrets
 creds = Credentials.from_service_account_info(
     st.secrets["gcp_service_account"],
     scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
 )
 client = gspread.authorize(creds)
-try:
-    sheet = client.open_by_key("1Nr1f3sV7-sz5eaPtNek84sRaMFnKFI9JWK9GSHpz1F4").sheet1
-except PermissionError as e:
-    st.warning("Permission issue detected. Save will still work after adding stocks.")
-    sheet = None  # Will use local data and save will update it
+sheet = client.open_by_key("1Nr1f3sV7-sz5eaPtNek84sRaMFnKFI9JWK9GSHpz1F4").sheet1
 
 def load_holdings():
-    if sheet:
-        try:
-            records = sheet.get_all_records()
-            if records:
-                return pd.DataFrame(records)
-            else:
-                return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
-        except Exception as e:
-            st.error(f"Load failed: {e}. Using local data.")
+    try:
+        records = sheet.get_all_records()
+        df = pd.DataFrame(records)
+        if not df.empty:
+            # Force correct types to avoid Streamlit compatibility error
+            df["Shares"] = pd.to_numeric(df["Shares"], errors="coerce").fillna(0.0)
+            df["Buy Price ($)"] = pd.to_numeric(df["Buy Price ($)"], errors="coerce").fillna(0.0)
+            df["Your Target Price ($)"] = pd.to_numeric(df["Your Target Price ($)"], errors="coerce").fillna(0.0)
+            return df
+        else:
             return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
-    return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
+    except Exception as e:
+        st.warning(f"Google Sheets load failed: {e}. Using local data.")
+        return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
 
 def save_holdings(df):
-    if sheet:
-        try:
-            sheet.clear()
-            sheet.append_row(df.columns.tolist())
-            sheet.append_rows(df.values.tolist())
-            st.success("Holdings saved to Google Sheets!")
-        except Exception as e:
-            st.error(f"Save failed: {e}")
-    else:
-        st.warning("Sheet not accessible. Data saved locally only.")
+    try:
+        sheet.clear()
+        sheet.append_row(df.columns.tolist())
+        sheet.append_rows(df.values.tolist())
+        st.success("Holdings saved to Google Sheets!")
+    except Exception as e:
+        st.error(f"Save failed: {e}")
 
 if 'holdings' not in st.session_state:
     st.session_state.holdings = load_holdings()
 
+# Ensure correct types before editing
+holdings = st.session_state.holdings.copy()
+holdings["Shares"] = pd.to_numeric(holdings["Shares"], errors="coerce").fillna(0.0)
+holdings["Buy Price ($)"] = pd.to_numeric(holdings["Buy Price ($)"], errors="coerce").fillna(0.0)
+holdings["Your Target Price ($)"] = pd.to_numeric(holdings["Your Target Price ($)"], errors="coerce").fillna(0.0)
+
 edited = st.data_editor(
-    st.session_state.holdings,
+    holdings,
     num_rows="dynamic",
     column_config={
         "Ticker": st.column_config.TextColumn("Ticker", required=True),
