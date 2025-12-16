@@ -8,7 +8,7 @@ st.title("📈 My Stock Portfolio Tracker")
 
 st.write("Add your stocks below. Click **Refresh Prices** for live data. Your holdings are saved automatically in your browser — they will stay when you reopen the link on this device.")
 
-# Start with one blank row to avoid typing issues
+# Start with one blank row
 if 'holdings' not in st.session_state or st.session_state.holdings.empty:
     st.session_state.holdings = pd.DataFrame([{
         "Ticker": "",
@@ -90,22 +90,9 @@ if st.button("🔄 Refresh Prices", type="primary", use_container_width=True):
     col2.metric("Total Invested", f"${total_cost:,.2f}")
     col3.metric("Total Profit/Loss", f"${total_profit:+,.2f}", delta=f"{(total_profit/total_cost)*100 if total_cost and total_cost != 0 else 0:+.2f}%")
 
-    # Fixed formatting without lambda
-    format_dict = {
-        "Current Price": "${:.2f}",
-        "Current Value ($)": "${:,.2f}",
-        "Total Cost ($)": "${:,.2f}",
-        "Profit/Loss ($)": "${:+,.2f}",
-        "Profit/Loss (%)": "{:+.2f}%",
-        "Your Target Price ($)": "${:.2f}",
-        "Analyst Target": "${:.2f}",
-        "Analyst Upside (%)": "{:+.2f}%"
-    }
-
+    # Fixed: use st.dataframe without .style.format to avoid TypeError
     st.dataframe(
-        edited.style.format(format_dict)
-        .background_gradient(subset=["Profit/Loss (%)"], cmap="RdYlGn")
-        .background_gradient(subset=["Analyst Upside (%)"], cmap="Blues"),
+        edited,
         use_container_width=True
     )
 
