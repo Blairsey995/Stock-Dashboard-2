@@ -2,59 +2,23 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import matplotlib.pyplot as plt
-import gspread
-from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="My Stock Tracker", layout="wide")
 st.title("📈 My Stock Portfolio Tracker")
 
-st.write("Add your stocks below. Click **Refresh Prices** for live data. Click **Save** to save to Google Sheets (persistent across devices).")
+st.write("Add your stocks below. Click **Refresh Prices** for live data. Your holdings are saved automatically in your browser — they will stay when you reopen the link on this device.")
 
-# Google Sheets using Streamlit secrets + sheet ID
-creds = Credentials.from_service_account_info(
-    st.secrets["gcp_service_account"],
-    scopes=["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-)
-client = gspread.authorize(creds)
-sheet = client.open_by_key("1Nr1f3sV7-sz5eaPtNek84sRaMFnKFI9JWK9GSHpz1F4").sheet1  # Your sheet ID
-
-def load_holdings():
-    try:
-        records = sheet.get_all_records()
-        if records:
-            df = pd.DataFrame(records)
-            # Force correct types to avoid compatibility error
-            df["Shares"] = pd.to_numeric(df["Shares"], errors="coerce").fillna(0.0)
-            df["Buy Price ($)"] = pd.to_numeric(df["Buy Price ($)"], errors="coerce").fillna(0.0)
-            df["Your Target Price ($)"] = pd.to_numeric(df["Your Target Price ($)"], errors="coerce").fillna(0.0)
-            return df
-        else:
-            return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
-    except Exception as e:
-        st.warning(f"Google Sheets load failed: {e}. Starting with empty table.")
-        return pd.DataFrame(columns=["Ticker", "Shares", "Buy Price ($)", "Your Target Price ($)"])
-
-def save_holdings(df):
-    try:
-        sheet.clear()
-        sheet.append_row(df.columns.tolist())
-        sheet.append_rows(df.values.tolist())
-        st.success("Holdings saved to Google Sheets!")
-    except Exception as e:
-        st.error(f"Save failed: {e}")
-
-if 'holdings' not in st.session_state:
-    st.session_state.holdings = load_holdings()
-
-# Force types before editing to avoid compatibility error
-holdings = st.session_state.holdings.copy()
-holdings["Ticker"] = holdings["Ticker"].astype("str").fillna("")
-holdings["Shares"] = pd.to_numeric(holdings["Shares"], errors="coerce").fillna(0.0)
-holdings["Buy Price ($)"] = pd.to_numeric(holdings["Buy Price ($)"], errors="coerce").fillna(0.0)
-holdings["Your Target Price ($)"] = pd.to_numeric(holdings["Your Target Price ($)"], errors="coerce").fillna(0.0)
+# Start with one blank row to avoid typing issues
+if 'holdings' not in st.session_state or st.session_state.holdings.empty:
+    st.session_state.holdings = pd.DataFrame([{
+        "Ticker": "",
+        "Shares": 0.0,
+        "Buy Price ($)": 0.0,
+        "Your Target Price ($)": 0.0
+    }])
 
 edited = st.data_editor(
-    holdings,
+    st.session_state.holdings,
     num_rows="dynamic",
     column_config={
         "Ticker": st.column_config.TextColumn("Ticker", required=True),
@@ -66,9 +30,6 @@ edited = st.data_editor(
 )
 
 st.session_state.holdings = edited
-
-if st.button("💾 Save to Google Sheets", type="secondary", use_container_width=True):
-    save_holdings(edited)
 
 if st.button("🔄 Refresh Prices", type="primary", use_container_width=True):
     with st.spinner("Fetching live prices and analyst targets..."):
@@ -129,17 +90,20 @@ if st.button("🔄 Refresh Prices", type="primary", use_container_width=True):
     col2.metric("Total Invested", f"${total_cost:,.2f}")
     col3.metric("Total Profit/Loss", f"${total_profit:+,.2f}", delta=f"{(total_profit/total_cost)*100 if total_cost and total_cost != 0 else 0:+.2f}%")
 
+    # Fixed formatting without lambda
+    format_dict = {
+        "Current Price": "${:.2f}",
+        "Current Value ($)": "${:,.2f}",
+        "Total Cost ($)": "${:,.2f}",
+        "Profit/Loss ($)": "${:+,.2f}",
+        "Profit/Loss (%)": "{:+.2f}%",
+        "Your Target Price ($)": "${:.2f}",
+        "Analyst Target": "${:.2f}",
+        "Analyst Upside (%)": "{:+.2f}%"
+    }
+
     st.dataframe(
-        edited.style.format({
-            "Current Price": "${:.2f}",
-            "Current Value ($)": "${:,.2f}",
-            "Total Cost ($)": "${:,.2f}",
-            "Profit/Loss ($)": "${:+,.2f}",
-            "Profit/Loss (%)": "{:+.2f}%",
-            "Your Target Price ($)": "${:.2f}",
-            "Analyst Target": "${:.2f}",
-            "Analyst Upside (%)": "{:+.2f}%"
-        })
+        edited.style.format(format_dict)
         .background_gradient(subset=["Profit/Loss (%)"], cmap="RdYlGn")
         .background_gradient(subset=["Analyst Upside (%)"], cmap="Blues"),
         use_container_width=True
@@ -160,4 +124,6 @@ if st.button("🔄 Refresh Prices", type="primary", use_container_width=True):
             ax.pie(value_df["Current Value ($)"], labels=value_df["Ticker"], autopct="%1.1f%%", startangle=90)
             ax.axis("equal")
             st.pyplot(fig)
+
+st.info("Your holdings are saved automatically in your browser. They will persist when you reopen the link on this device.")
 
